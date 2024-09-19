@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Load the datasets
 keywords_data = pd.read_csv("keywords.tsv", sep="\t")
@@ -21,18 +24,21 @@ def merge_data(keywords_data, faculty_data):
 
 merged_data = merge_data(keywords_data, faculty_data)
 
+# Initialize session state variables
+if "selected_departments" not in st.session_state:
+    all_departments = merged_data["department"].unique().tolist()
+    st.session_state.selected_departments = all_departments.copy()
+
+if "selected_goals" not in st.session_state:
+    goal_columns = [f"goal{i}" for i in range(1, 18)]
+    st.session_state.selected_goals = goal_columns.copy()
+
 # Sidebar filters with collapsible sections
 st.sidebar.header("Filter Options")
 
 # Expander for Department Selection
 with st.sidebar.expander("Select Department(s)"):
     all_departments = merged_data["department"].unique().tolist()
-
-    # Initialize session state for departments
-    if "selected_departments" not in st.session_state:
-        st.session_state.selected_departments = (
-            all_departments.copy()
-        )  # default to all selected
 
     def select_all_departments():
         st.session_state.selected_departments = all_departments.copy()
@@ -46,7 +52,6 @@ with st.sidebar.expander("Select Department(s)"):
     selected_departments = st.multiselect(
         "Choose Department(s)",
         options=all_departments,
-        default=st.session_state.selected_departments,
         key="selected_departments",
     )
 
@@ -65,10 +70,6 @@ years = st.sidebar.slider(
 with st.sidebar.expander("Select Sustainability Goal(s)"):
     goal_columns = [f"goal{i}" for i in range(1, 18)]
 
-    # Initialize session state for goals
-    if "selected_goals" not in st.session_state:
-        st.session_state.selected_goals = goal_columns.copy()  # default to all selected
-
     def select_all_goals():
         st.session_state.selected_goals = goal_columns.copy()
 
@@ -81,7 +82,6 @@ with st.sidebar.expander("Select Sustainability Goal(s)"):
     selected_goals = st.multiselect(
         "Choose Goals",
         options=goal_columns,
-        default=st.session_state.selected_goals,
         key="selected_goals",
     )
 
@@ -90,6 +90,11 @@ filtered_data = merged_data[
     (merged_data["department"].isin(selected_departments))
     & (merged_data["publication_year"].between(years[0], years[1]))
 ]
+
+# Handle case when no goals are selected
+if not selected_goals:
+    st.error("Please select at least one Sustainability Goal.")
+    st.stop()
 
 # Tabs for different visualizations
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(
