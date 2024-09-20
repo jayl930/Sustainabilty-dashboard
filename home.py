@@ -24,14 +24,39 @@ def merge_data(keywords_data, faculty_data):
 
 merged_data = merge_data(keywords_data, faculty_data)
 
+# Define the goal labels
+goal_labels = {
+    "goal1": "G1: No Poverty",
+    "goal2": "G2: Zero Hunger",
+    "goal3": "G3: Good Health",
+    "goal4": "G4: Quality Education",
+    "goal5": "G5: Gender Equality",
+    "goal6": "G6: Clean Water",
+    "goal7": "G7: Clean Energy",
+    "goal8": "G8: Work & Economy",
+    "goal9": "G9: Innovation & Infrastructure",
+    "goal10": "G10: Reduced Inequalities",
+    "goal11": "G11: Sustainable Cities",
+    "goal12": "G12: Responsible Consumption",
+    "goal13": "G13: Climate Action",
+    "goal14": "G14: Life Below Water",
+    "goal15": "G15: Life on Land",
+    "goal16": "G16: Peace & Justice",
+    "goal17": "G17: Partnerships",
+}
+
+# Create reverse mapping from label to column name
+label_to_goal = {v: k for k, v in goal_labels.items()}
+
 # Initialize session state variables
 if "selected_departments" not in st.session_state:
     all_departments = merged_data["department"].unique().tolist()
     st.session_state.selected_departments = all_departments.copy()
 
 if "selected_goals" not in st.session_state:
-    goal_columns = [f"goal{i}" for i in range(1, 18)]
-    st.session_state.selected_goals = goal_columns.copy()
+    st.session_state.selected_goals = list(
+        goal_labels.values()
+    )  # default to all labels
 
 # Sidebar filters with collapsible sections
 st.sidebar.header("Filter Options")
@@ -68,10 +93,9 @@ years = st.sidebar.slider(
 
 # Expander for Goal Selection
 with st.sidebar.expander("Select Sustainability Goal(s)"):
-    goal_columns = [f"goal{i}" for i in range(1, 18)]
 
     def select_all_goals():
-        st.session_state.selected_goals = goal_columns.copy()
+        st.session_state.selected_goals = list(goal_labels.values())
 
     def deselect_all_goals():
         st.session_state.selected_goals = []
@@ -79,11 +103,14 @@ with st.sidebar.expander("Select Sustainability Goal(s)"):
     st.button("Select All Goals", on_click=select_all_goals)
     st.button("Deselect All Goals", on_click=deselect_all_goals)
 
-    selected_goals = st.multiselect(
+    selected_goals_labels = st.multiselect(
         "Choose Goals",
-        options=goal_columns,
+        options=list(goal_labels.values()),
         key="selected_goals",
     )
+
+# Map selected goal labels back to column names
+selected_goals = [label_to_goal[label] for label in selected_goals_labels]
 
 # Apply filters
 filtered_data = merged_data[
@@ -116,6 +143,8 @@ with tab1:
     st.subheader("Article Goal Distribution")
     goal_distribution = filtered_data[selected_goals].sum().reset_index()
     goal_distribution.columns = ["Goal", "Total"]
+    # Map 'Goal' column to labels
+    goal_distribution["Goal"] = goal_distribution["Goal"].map(goal_labels)
 
     fig = px.bar(
         goal_distribution,
@@ -138,6 +167,8 @@ with tab2:
         var_name="Goal",
         value_name="Keyword Matches",
     )
+    # Map 'Goal' column to labels
+    goal_year_data_melted["Goal"] = goal_year_data_melted["Goal"].map(goal_labels)
 
     fig = px.line(
         goal_year_data_melted,
@@ -161,6 +192,8 @@ with tab3:
         var_name="Goal",
         value_name="Keyword Matches",
     )
+    # Map 'Goal' column to labels
+    dept_goal_focus_melted["Goal"] = dept_goal_focus_melted["Goal"].map(goal_labels)
 
     fig = px.bar(
         dept_goal_focus_melted,
@@ -200,11 +233,13 @@ with tab5:
         var_name="Goal",
         value_name="Total",
     )
+    # Map 'Goal' column to labels
+    dept_goal_melted["Goal"] = dept_goal_melted["Goal"].map(goal_labels)
 
     # For each selected goal, plot the top departments
-    for goal in selected_goals:
-        st.write(f"### {goal}")
-        goal_data = dept_goal_melted[dept_goal_melted["Goal"] == goal]
+    for goal_label in selected_goals_labels:
+        st.write(f"### {goal_label}")
+        goal_data = dept_goal_melted[dept_goal_melted["Goal"] == goal_label]
         goal_data = goal_data.sort_values(by="Total", ascending=True)
 
         fig = px.bar(
@@ -212,7 +247,7 @@ with tab5:
             x="Total",
             y="department",
             orientation="h",
-            title=f"Top Departments for {goal}",
+            title=f"Top Departments for {goal_label}",
         )
         st.plotly_chart(fig)
 
@@ -233,6 +268,8 @@ with tab6:
         var_name="Goal",
         value_name="Keyword Matches",
     )
+    # Map 'Goal' column to labels
+    dept_goal_melted["Goal"] = dept_goal_melted["Goal"].map(goal_labels)
 
     # Compute proportion
     dept_goal_melted["Proportion"] = (
@@ -257,11 +294,13 @@ with tab6:
 
     dept_data = dept_goal_total[dept_goal_total["department"] == selected_dept]
     dept_data_melted = dept_data.melt(
-        id_vars="department",
+        id_vars=["department", "Total"],
         value_vars=selected_goals,
         var_name="Goal",
         value_name="Keyword Matches",
     )
+    # Map 'Goal' column to labels
+    dept_data_melted["Goal"] = dept_data_melted["Goal"].map(goal_labels)
 
     fig = px.pie(
         dept_data_melted,
@@ -296,6 +335,8 @@ with tab7:
         var_name="Goal",
         value_name="Keyword Matches",
     )
+    # Map 'Goal' column to labels
+    dept_goal_year_melted["Goal"] = dept_goal_year_melted["Goal"].map(goal_labels)
 
     # Plot stacked area chart
     fig = px.area(
@@ -312,11 +353,12 @@ with tab8:
     st.subheader("Bubble Chart of Articles by Year and Goal")
 
     # Create boolean columns indicating whether the article has matches for each goal
-    goal_bool_cols = [f"{col}_bool" for col in selected_goals]
-    for goal, bool_col in zip(selected_goals, goal_bool_cols):
+    for goal in selected_goals:
+        bool_col = f"{goal}_bool"
         filtered_data[bool_col] = filtered_data[goal] > 0
 
     # Melt the data
+    goal_bool_cols = [f"{goal}_bool" for goal in selected_goals]
     melted = filtered_data.melt(
         id_vars=["publication_year"],
         value_vars=goal_bool_cols,
@@ -326,6 +368,8 @@ with tab8:
 
     # Clean up Goal names
     melted["Goal"] = melted["Goal"].str.replace("_bool", "")
+    # Map 'Goal' column to labels
+    melted["Goal"] = melted["Goal"].map(goal_labels)
 
     # Filter only articles that have matches
     melted = melted[melted["Has_Match"] == True]
@@ -353,11 +397,12 @@ with tab9:
     st.subheader("Treemap of Articles by Department and Goal")
 
     # Create boolean columns indicating whether the article has matches for each goal
-    goal_bool_cols = [f"{col}_bool" for col in selected_goals]
-    for goal, bool_col in zip(selected_goals, goal_bool_cols):
+    for goal in selected_goals:
+        bool_col = f"{goal}_bool"
         filtered_data[bool_col] = filtered_data[goal] > 0
 
     # Melt the data to have one row per article per goal
+    goal_bool_cols = [f"{goal}_bool" for goal in selected_goals]
     melted = filtered_data.melt(
         id_vars=["article_number", "department"],
         value_vars=goal_bool_cols,
@@ -367,6 +412,8 @@ with tab9:
 
     # Clean up Goal names
     melted["Goal"] = melted["Goal"].str.replace("_bool", "")
+    # Map 'Goal' column to labels
+    melted["Goal"] = melted["Goal"].map(goal_labels)
 
     # Filter only articles that have matches
     melted = melted[melted["Has_Match"] == True]
